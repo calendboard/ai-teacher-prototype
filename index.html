@@ -290,6 +290,21 @@ const apiKey=$("apiKey"), age=$("age"), lesson=$("lesson"),
       studentGender=$("studentGender"), teacherGender=$("teacherGender"), methodSel=$("method"),
       chat=$("chat"), q=$("q"), note=$("note");
 
+/* ---- חיבור ל-AI: דרך שרת (כשהאפליקציה מאוחסנת) או ישירות עם מפתחות (קובץ מקומי / github.io) ---- */
+const USE_PROXY = !(location.protocol==='file:' || location.hostname.endsWith('github.io'));
+async function callAnthropic(bodyObj){
+  if(USE_PROXY) return fetch("/api/claude",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(bodyObj)});
+  const key=apiKey.value.trim();
+  if(!key){ const e=new Error("no key"); e.noKey=true; throw e; }
+  return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify(bodyObj)});
+}
+async function callTTS(bodyObj){
+  if(USE_PROXY) return fetch("/api/tts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(bodyObj)});
+  const key=elevenKey.value.trim();
+  if(!key){ const e=new Error("no-el-key"); e.noKey=true; throw e; }
+  return fetch("https://api.elevenlabs.io/v1/text-to-speech/"+encodeURIComponent(bodyObj.voice_id),{method:"POST",headers:{"xi-api-key":key,"content-type":"application/json","accept":"audio/mpeg"},body:JSON.stringify({text:bodyObj.text,model_id:bodyObj.model_id})});
+}
+
 if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 const SAMPLE_LESSON =
@@ -413,9 +428,8 @@ async function speak(text){
   if(!speakOn.checked) return;
   stopSpeaking();
   if(voiceMode.value==="eleven"){
-    const key=elevenKey.value.trim();
-    if(!key){ showNote("חסר מפתח ElevenLabs (הגדרות). אשמיע בקול הדפדפן."); return speakBrowser(text); }
-    try{ await speakEleven(text,key); }
+    if(!USE_PROXY && !elevenKey.value.trim()){ showNote("חסר מפתח ElevenLabs (הגדרות). אשמיע בקול הדפדפן."); return speakBrowser(text); }
+    try{ await speakEleven(text); }
     catch(e){ showNote((e.message||"בעיה בקול הטבעי")+" — אשמיע בקול הדפדפן."); speakBrowser(text); }
   } else speakBrowser(text);
 }
@@ -428,12 +442,9 @@ function speakBrowser(text){
   u.onstart=()=>{browserSpeaking=true;}; u.onend=()=>{browserSpeaking=false;}; u.onerror=()=>{browserSpeaking=false;};
   window.speechSynthesis.speak(u);
 }
-async function speakEleven(text,key){
+async function speakEleven(text){
   showPrep("🔊 מכינה את הקול... (רגע)");
-  const res=await fetch("https://api.elevenlabs.io/v1/text-to-speech/"+encodeURIComponent(getVoiceId()),{
-    method:"POST", headers:{ "xi-api-key":key,"content-type":"application/json","accept":"audio/mpeg" },
-    body:JSON.stringify({ text, model_id:TTS_MODEL })
-  });
+  const res=await callTTS({ voice_id:getVoiceId(), text, model_id:TTS_MODEL });
   if(!res.ok){
     let msg="", code=""; try{ const j=await res.json(); const d=j.detail||{}; msg=d.message||(typeof d==="string"?d:""); code=d.status||d.code||""; }catch(e){}
     if(code==="quota_exceeded" || /quota/i.test(msg)) throw new Error("נגמרה היתרה של ElevenLabs לחודש הזה — הקול הטבעי יחזור בתחילת החודש, או אחרי שדרוג");
@@ -449,9 +460,8 @@ async function speakEleven(text,key){
 }
 $("testVoice").addEventListener("click", async ()=>{
   unlockAudio(); store.save(); clearNote();
-  const key=elevenKey.value.trim();
-  if(!key){ showNote("חסר מפתח ElevenLabs (בהגדרות)."); return; }
-  try{ await speakEleven("שלום, אני המורה שלך. נעים מאוד להכיר!", key); }
+  if(!USE_PROXY && !elevenKey.value.trim()){ showNote("חסר מפתח ElevenLabs (בהגדרות)."); return; }
+  try{ await speakEleven("שלום, אני המורה שלך. נעים מאוד להכיר!"); }
   catch(e){ showNote(e.message||"בעיה בהשמעת הדוגמה."); }
 });
 
@@ -556,13 +566,8 @@ function genderReminder(){
     : "\n\n(תזכורת פנימית: התלמידה בת — לפנות בלשון נקבה בלבד.)";
 }
 async function callBrain(){
-  const key=apiKey.value.trim();
-  if(!key){ showNote("חסר מפתח המוח (Anthropic). פתח 'הגדרות'."); throw new Error("no key"); }
-  const res=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
-    body:JSON.stringify({ model:MODEL, max_tokens:400, system:systemPrompt(), messages:history })
-  });
+  if(!USE_PROXY && !apiKey.value.trim()){ showNote("חסר מפתח המוח (Anthropic). פתח 'הגדרות'."); throw new Error("no key"); }
+  const res=await callAnthropic({ model:MODEL, max_tokens:400, system:systemPrompt(), messages:history });
   if(!res.ok){
     let t=""; try{ t=(await res.json()).error?.message||""; }catch(e){}
     if(res.status===401) throw new Error("מפתח המוח לא תקין.");
@@ -586,9 +591,8 @@ function setBusy(b){ $("start").disabled=b; $("send").disabled=b; }
 /* ---- בניית שיעור (נושא / קובץ) ---- */
 function setBuilding(b){ const btn=$("buildLesson"); btn.disabled=b; btn.textContent=b?"בונה...":"✨ בנה שיעור"; const fb=$("useFileBuild"); fb.disabled=b; }
 async function buildLessonCore(opts){
-  const key=apiKey.value.trim();
   const topic=(opts.topic||"").trim(), material=(opts.material||"").trim();
-  if(!key){ showNote("חסר מפתח המוח (Anthropic) — פתח 'הגדרות'."); return; }
+  if(!USE_PROXY && !apiKey.value.trim()){ showNote("חסר מפתח המוח (Anthropic) — פתח 'הגדרות'."); return; }
   if(!topic && !material){ showNote("כתוב נושא או העלה קובץ."); return; }
   setBuilding(true); clearNote();
   const a=age.value.trim()||"בית ספר יסודי";
@@ -611,10 +615,7 @@ async function buildLessonCore(opts){
   const sys=material ? base+`\n\nבסס את השיעור אך ורק על חומר המקור הבא; אל תוסיף עובדות שאינן בו:\n"""\n${material.slice(0,12000)}\n"""` : base;
   const userMsg=material ? "בנה שיעור מתוך החומר שסופק." : topic;
   try{
-    const res=await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST", headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
-      body:JSON.stringify({ model:MODEL, max_tokens:1500, system:sys, messages:[{role:"user", content:userMsg}] })
-    });
+    const res=await callAnthropic({ model:MODEL, max_tokens:1500, system:sys, messages:[{role:"user", content:userMsg}] });
     if(!res.ok){ if(res.status===401){ showNote("מפתח המוח לא תקין."); return; } showNote("לא הצלחתי לבנות שיעור."); return; }
     const out=((await res.json()).content||[]).map(b=>b.text||"").join("").trim();
     if(out){
@@ -739,13 +740,13 @@ $("saveMemoryEdit").addEventListener("click", ()=>{ const s=curStudent(); if(!s)
 $("clearMemory").addEventListener("click", ()=>{ const s=curStudent(); if(!s) return; s.memory=""; saveStudents(); showMemory(); showOk("הזיכרון נוקה."); });
 $("saveProgress").addEventListener("click", async ()=>{
   const s=curStudent(); if(!s){ showNote("בחר תלמיד קודם (למעלה)."); return; }
-  const key=apiKey.value.trim(); if(!key){ showNote("חסר מפתח המוח."); return; }
+  if(!USE_PROXY && !apiKey.value.trim()){ showNote("חסר מפתח המוח."); return; }
   if(history.length<2){ showNote("אין עדיין שיעור לסכם."); return; }
   showPrep("💾 שומר התקדמות...");
   const convo=history.map(m=>(m.role==="user"?"תלמיד: ":"מורה: ")+m.content).join("\n").slice(0,8000);
   const sys="לפניך שיחת שיעור. סכם ב-2-3 משפטים בגוף שלישי: מה התלמיד למד, מה הוא יודע טוב, ובמה התקשה. כתוב רק את הסיכום, להוספה לזיכרון אישי לפעם הבאה.";
   try{
-    const res=await fetch("https://api.anthropic.com/v1/messages",{ method:"POST", headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" }, body:JSON.stringify({ model:MODEL, max_tokens:300, system:sys, messages:[{role:"user", content:convo}] }) });
+    const res=await callAnthropic({ model:MODEL, max_tokens:300, system:sys, messages:[{role:"user", content:convo}] });
     if(!res.ok){ showNote("לא הצלחתי לשמור התקדמות."); return; }
     const sum=((await res.json()).content||[]).map(b=>b.text||"").join("").trim();
     if(sum){ const d=new Date().toLocaleDateString("he-IL"); s.memory=(s.memory?s.memory+"\n":"")+"["+d+"] "+sum; saveStudents(); showMemory(); showOk("ההתקדמות נשמרה לזיכרון של "+s.name+" ✅"); }
