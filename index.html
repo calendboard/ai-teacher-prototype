@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>מורה AI — אבטיפוס</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f7fb; --card:#ffffff; --ink:#1f2a37; --muted:#6b7280;
+    --teacher:#e8f1ff; --teacher-edge:#bcd6ff;
+    --student:#eef2f5; --student-edge:#dde3e8;
+    --brand:#2563eb; --brand-dark:#1d4ed8; --ok:#16a34a; --line:#e5e9f0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"SF Hebrew","Heebo","Segoe UI",Arial,sans-serif; line-height:1.55;}
+  .wrap{max-width:760px; margin:0 auto; padding:18px 16px 40px}
+  header h1{font-size:24px; margin:8px 0 2px}
+  header p{margin:0 0 12px; color:var(--muted)}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:16px; margin-bottom:14px; box-shadow:0 1px 2px rgba(16,24,40,.04);}
+  .card h2{font-size:15px; margin:0 0 10px; color:var(--muted); font-weight:700}
+  .sub{font-size:12px; color:var(--muted); margin:16px 0 0; font-weight:700}
+  label{display:block; font-size:13px; color:var(--muted); margin:10px 0 4px}
+  input[type=text],input[type=password],textarea,select{width:100%; padding:10px 12px;
+    border:1px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--ink);}
+  textarea{min-height:120px; resize:vertical}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .row > *{flex:1; min-width:140px}
+  .hint{font-size:12px; color:var(--muted); margin-top:6px}
+  .hint a{color:var(--brand)}
+  button{font:inherit; font-weight:600; border:0; border-radius:10px; padding:11px 16px;
+    background:var(--brand); color:#fff; cursor:pointer;}
+  button:hover{background:var(--brand-dark)}
+  button.ghost{background:#eef2f7; color:var(--ink)}
+  button.ghost:hover{background:#e3e9f1}
+  button:disabled{opacity:.5; cursor:default}
+  .btns{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap}
+  .toggle{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink)}
+  .toggle input{width:auto}
+  /* מצב מורה/תלמיד */
+  .modebar{display:flex; gap:8px; justify-content:center; margin-bottom:14px}
+  .modebar button.alt{background:#eef2f7; color:var(--ink)}
+  body.mode-student .teacher-only{display:none}
+  body:not(.mode-student) .student-only{display:none}
+  .big{font-size:18px; padding:16px; width:100%}
+  .tiles{display:flex; flex-wrap:wrap; gap:10px}
+  .tile{flex:1 1 150px; min-width:150px; padding:20px 14px; border-radius:14px; border:1px solid var(--line);
+    background:#f8fafc; cursor:pointer; font-weight:700; text-align:center; color:var(--ink)}
+  .tile:hover{background:#eef4ff; border-color:var(--brand)}
+  /* אווטאר + מד התקדמות */
+  .avatarWrap{display:flex; justify-content:center; margin-bottom:12px}
+  #avatar{filter:drop-shadow(0 3px 8px rgba(16,24,40,.15))}
+  #tracker{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:12px}
+  #tracker:empty{display:none}
+  .step{font-size:12px; padding:5px 10px; border-radius:999px; background:#eef2f7; color:#6b7280; border:1px solid var(--line)}
+  .step.active{background:#dbeafe; color:#1d4ed8; border-color:#bcd6ff; font-weight:700}
+  .step.done{background:#ecfdf5; color:#047857; border-color:#a7f3d0}
+  .step.done::before{content:"✓ "}
+  .badge{display:none; font-size:12px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; border-radius:999px; padding:2px 8px; margin-inline-start:6px}
+  /* שיחה */
+  #chat{display:flex; flex-direction:column; gap:10px; min-height:60px}
+  .bubble{padding:10px 14px; border-radius:14px; max-width:85%; white-space:pre-wrap; word-wrap:break-word}
+  .teacher{align-self:flex-start; background:var(--teacher); border:1px solid var(--teacher-edge); border-top-right-radius:4px}
+  .student{align-self:flex-end; background:var(--student); border:1px solid var(--student-edge); border-top-left-radius:4px}
+  .who{font-size:11px; color:var(--muted); margin-bottom:2px}
+  .dots span{display:inline-block; animation:blink 1.2s infinite both}
+  .dots span:nth-child(2){animation-delay:.2s}
+  .dots span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+  .ask{display:flex; gap:8px; margin-top:12px}
+  .ask input{flex:1}
+  .mic{flex:0 0 auto; background:#eef2f7; color:var(--ink); width:48px; padding:0}
+  .mic.live{background:#fee2e2; color:#b91c1c}
+  .note{padding:10px 12px; border-radius:10px; font-size:14px; margin-top:10px; display:none}
+  .note.err{background:#fef2f2; border:1px solid #fecaca; color:#b91c1c}
+  .note.play{background:#eff6ff; border:1px solid #bcd6ff; color:#1d4ed8}
+  .note.ok{background:#ecfdf5; border:1px solid #a7f3d0; color:#047857}
+  details summary{cursor:pointer; color:var(--muted); font-size:14px; font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>👩‍🏫 מורה AI — אבטיפוס</h1>
+    <p>צד מורה: הכנה ובקרת שיעורים. צד תלמיד: ממשק פשוט ללמידה.</p>
+  </header>
+
+  <div class="modebar">
+    <button id="btnTeacher">👩‍🏫 צד מורה</button>
+    <button id="btnStudent">🧒 צד תלמיד</button>
+  </div>
+
+  <div class="card" style="padding:12px 16px">
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+      <strong style="font-size:14px; white-space:nowrap">👦 מי לומד עכשיו:</strong>
+      <select id="studentSel" style="flex:1; min-width:140px"></select>
+      <button id="newStudent" class="ghost">➕ תלמיד חדש</button>
+    </div>
+  </div>
+
+  <!-- הגדרות -->
+  <div class="card teacher-only">
+    <details>
+      <summary>הגדרות (מפתחות, קול, גיל)</summary>
+      <div style="margin-top:12px">
+        <label for="apiKey">מפתח המוח (Anthropic API key)</label>
+        <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
+        <div class="hint">המוח שעונה ומלמד. <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a></div>
+
+        <div class="sub">🔊 קול המורה</div>
+        <label for="voiceMode">סוג קול</label>
+        <select id="voiceMode">
+          <option value="eleven">קול טבעי (ElevenLabs) — מומלץ</option>
+          <option value="browser">קול חינמי מובנה בדפדפן</option>
+        </select>
+
+        <label for="teacherGender">מין המורה (איך מדבר/ת על עצמו/ה)</label>
+        <select id="teacherGender">
+          <option value="f">מורה (נקבה)</option>
+          <option value="m">מורה (זכר)</option>
+        </select>
+
+        <div id="elevenBox">
+          <label for="elevenKey">מפתח ElevenLabs</label>
+          <input id="elevenKey" type="password" placeholder="sk_..." autocomplete="off" />
+          <div class="hint">להרשמה והפקת מפתח: <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">elevenlabs.io</a> (יש גרסה חינמית)</div>
+          <label for="elevenVoice">בחירת קול</label>
+          <select id="elevenVoice"></select>
+          <div class="hint">קולות שעובדים בחשבון חינמי.</div>
+          <div id="customVoiceBox" style="display:none">
+            <label for="elevenVoiceCustom">Voice ID ידני</label>
+            <input id="elevenVoiceCustom" type="text" placeholder="הדבק Voice ID" />
+          </div>
+          <button id="testVoice" class="ghost" style="margin-top:8px">🔈 שמע דוגמה לקול</button>
+        </div>
+
+        <div id="browserBox">
+          <label for="voice">קול הדפדפן (לאופציה החינמית)</label>
+          <select id="voice"></select>
+        </div>
+
+        <div class="sub">👦 התלמיד</div>
+        <label for="age">גיל / כיתה</label>
+        <input id="age" type="text" placeholder="כיתה א׳ (גיל 6–7)" />
+        <label for="studentGender">מין התלמיד (כדי לפנות אליו נכון)</label>
+        <select id="studentGender">
+          <option value="m">בן (לשון זכר)</option>
+          <option value="f">בת (לשון נקבה)</option>
+        </select>
+
+        <div class="sub">🎓 שיטת הוראה</div>
+        <label for="method">איך המורה תלמד</label>
+        <select id="method">
+          <option value="balanced">מאוזן (הסבר → דוגמה → בדיקה)</option>
+          <option value="socratic">סוקרטית (שאלות מכוונות, גילוי עצמי)</option>
+          <option value="discovery">גילוי וחקר</option>
+          <option value="story">דרך סיפור ודוגמאות</option>
+          <option value="practice">תרגול מודרך</option>
+          <option value="game">משחקי</option>
+        </select>
+
+        <label class="toggle" style="margin-top:14px">
+          <input id="speakOn" type="checkbox" checked /> להשמיע את המורה בקול
+        </label>
+      </div>
+    </details>
+  </div>
+
+  <!-- הכנת שיעור (מורה) -->
+  <div class="card teacher-only">
+    <h2>הכנת שיעור ובקרה</h2>
+
+    <label for="lessonLib" style="margin-top:0">📚 ספריית שיעורים</label>
+    <div class="ask" style="margin-top:6px">
+      <select id="lessonLib"><option value="">— בחר שיעור שמור —</option></select>
+      <button id="loadLesson" class="ghost">טען</button>
+    </div>
+
+    <label for="topic" style="margin-top:12px">בניית שיעור אוטומטית — הקלד נושא</label>
+    <div class="ask" style="margin-top:6px">
+      <input id="topic" type="text" placeholder="לדוגמה: חיבור עד 10, מחזור המים..." />
+      <button id="buildLesson">✨ בנה שיעור</button>
+    </div>
+
+    <label for="fileInput" style="margin-top:12px">או — העלה חומר לימוד (txt / PDF) ובנה ממנו</label>
+    <div class="ask" style="margin-top:6px">
+      <input type="file" id="fileInput" accept=".txt,.md,.pdf" />
+      <button id="useFileBuild" class="ghost">📄 בנה מהחומר</button>
+    </div>
+
+    <label for="lessonTitle" style="margin-top:14px">שם השיעור <span id="approvedBadge" class="badge">✓ מאושר</span></label>
+    <input id="lessonTitle" type="text" placeholder="למשל: חיבור עד 10 — כיתה א׳" />
+    <label for="lesson" style="margin-top:12px">תוכן השיעור (לבדיקה ועריכה):</label>
+    <textarea id="lesson"></textarea>
+
+    <div class="btns">
+      <button id="saveLesson" class="ghost">💾 שמור בספרייה</button>
+      <button id="approveLesson" class="ghost">✓ סמן כמאושר</button>
+      <button id="deleteLesson" class="ghost">🗑 מחק</button>
+    </div>
+    <div class="btns">
+      <button id="start">▶ התחל שיעור (בדיקה)</button>
+      <button id="reset" class="ghost">נקה שיחה</button>
+      <button id="stopVoice" class="ghost">⏹ עצור דיבור</button>
+    </div>
+  </div>
+
+  <!-- זיכרון על התלמיד (מורה) -->
+  <div class="card teacher-only">
+    <h2>🧠 מה המורה זוכרת על התלמיד</h2>
+    <textarea id="studentMemory" placeholder="עדיין אין זיכרון. אחרי שיעור — לחץ '💾 שמור התקדמות לתלמיד'."></textarea>
+    <div class="btns">
+      <button id="saveMemoryEdit" class="ghost">שמור עריכה</button>
+      <button id="clearMemory" class="ghost">נקה זיכרון</button>
+    </div>
+  </div>
+
+  <!-- בחירת שיעור (תלמיד) -->
+  <div class="card student-only">
+    <h2>בחר שיעור 🧒</h2>
+    <div id="studentLessons" class="tiles"></div>
+    <p id="noApproved" class="hint" style="display:none">אין עדיין שיעורים מאושרים. בקש מהמורה להכין שיעור.</p>
+  </div>
+
+  <!-- שיחה (משותף) -->
+  <div class="card">
+    <h2>השיעור</h2>
+    <div class="avatarWrap">
+      <svg id="avatar" viewBox="0 0 200 200" width="150" height="150" aria-hidden="true">
+        <g id="hairMale"><circle cx="100" cy="100" r="70" fill="#3b2a20"/></g>
+        <g id="hairFemale">
+          <circle cx="100" cy="100" r="70" fill="#5b3a29"/>
+          <rect x="26" y="92" width="20" height="80" rx="10" fill="#5b3a29"/>
+          <rect x="154" y="92" width="20" height="80" rx="10" fill="#5b3a29"/>
+        </g>
+        <circle cx="42" cy="112" r="9" fill="#f1c9a5"/>
+        <circle cx="158" cy="112" r="9" fill="#f1c9a5"/>
+        <circle cx="100" cy="110" r="60" fill="#f1c9a5"/>
+        <path d="M66 92 Q80 86 94 92" stroke="#4b3322" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M106 92 Q120 86 134 92" stroke="#4b3322" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <g id="eyeL"><ellipse cx="80" cy="104" rx="9" ry="11" fill="#fff"/><circle cx="80" cy="105" r="5" fill="#3a2c22"/></g>
+        <g id="eyeR"><ellipse cx="120" cy="104" rx="9" ry="11" fill="#fff"/><circle cx="120" cy="105" r="5" fill="#3a2c22"/></g>
+        <g stroke="#33415c" stroke-width="3" fill="none">
+          <circle cx="80" cy="104" r="16"/><circle cx="120" cy="104" r="16"/>
+          <line x1="96" y1="104" x2="104" y2="104"/>
+        </g>
+        <path d="M100 110 Q105 122 97 124" stroke="#d9a87f" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse id="mouth" cx="100" cy="146" rx="16" ry="2" fill="#b5494b"/>
+      </svg>
+    </div>
+    <div id="tracker"></div>
+    <div id="chat"></div>
+    <div class="ask">
+      <input id="q" type="text" placeholder="שאל את המורה שאלה..." />
+      <button id="mic" class="mic" title="דבר אל המורה">🎤</button>
+      <button id="send">שלח</button>
+    </div>
+    <div class="btns"><button id="saveProgress" class="ghost">💾 שמור התקדמות לתלמיד</button></div>
+    <div id="note" class="note"></div>
+  </div>
+</div>
+
+<script>
+/* ====== "המוח" ====== */
+const MODEL = "claude-opus-4-8";
+/* ====== קול טבעי (ElevenLabs) ====== */
+const TTS_MODEL = "eleven_v3";
+const VOICES = [
+  {id:"EXAVITQu4vr4xnSDxMaL", name:"Sarah — נשי, רך"},
+  {id:"XrExE9yKIg1WjnnlVkGX", name:"Matilda — נשי, חם"},
+  {id:"FGY2WhTYpPnrIDTdsKH5", name:"Laura — נשי, נמרץ"},
+  {id:"XB0fDUnXU5powFXDhCwa", name:"Charlotte — נשי, רגוע"},
+  {id:"Xb7hH8MSUJpSbSDYk0k2", name:"Alice — נשי, צלול"},
+  {id:"9BWtsMINqrJLrRacOk9x", name:"Aria — נשי, אקספרסיבי"},
+  {id:"cgSgspJ2msm6clMCkdW9", name:"Jessica — נשי, צעיר"},
+  {id:"CwhRBWXzGAHq8TQ4Fs17", name:"Roger — גברי, רגוע"},
+  {id:"JBFqnCBsd6RMkjVDRZzb", name:"George — גברי, עמוק"},
+  {id:"nPczCjzI2devNBz1zQrb", name:"Brian — גברי, חם"},
+];
+const DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL";
+const OLD_LIBRARY_VOICE = "21m00Tcm4TlvDq8ikWAM";
+
+const $ = id => document.getElementById(id);
+const apiKey=$("apiKey"), age=$("age"), lesson=$("lesson"),
+      voiceMode=$("voiceMode"), elevenKey=$("elevenKey"),
+      elevenVoice=$("elevenVoice"), elevenVoiceCustom=$("elevenVoiceCustom"),
+      voiceSel=$("voice"), speakOn=$("speakOn"),
+      studentGender=$("studentGender"), teacherGender=$("teacherGender"), methodSel=$("method"),
+      chat=$("chat"), q=$("q"), note=$("note");
+
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const SAMPLE_LESSON =
+`נושא: חיבור עד 10
+מטרות:
+- ללמוד לחבר שני מספרים שהסכום עד 10.
+
+שלב 1: מה זה חיבור
+מה מלמדים: חיבור זה לצרף ביחד.
+דוגמה: 2 תפוחים ועוד 3 תפוחים = 5 תפוחים.
+שאלת בדיקה: כמה זה 2 ועוד 1?
+תרגול: 1+1, 2+3.
+
+שלב 2: סדר לא משנה
+מה מלמדים: 2+3 שווה ל-3+2.
+דוגמה: 4+1 כמו 1+4.
+שאלת בדיקה: אם 3+2=5, כמה זה 2+3?
+תרגול: 5+2, 2+5.
+
+סיכום: כל הכבוד! למדנו לחבר עד 10.`;
+
+/* ---- תפריט קולות ElevenLabs ---- */
+(function(){
+  VOICES.forEach(v=>{ const o=document.createElement("option"); o.value=v.id; o.textContent=v.name; elevenVoice.appendChild(o); });
+  const other=document.createElement("option"); other.value="custom"; other.textContent="אחר (Voice ID ידני)"; elevenVoice.appendChild(other);
+})();
+function getVoiceId(){ return elevenVoice.value==="custom" ? (elevenVoiceCustom.value.trim()||DEFAULT_VOICE) : elevenVoice.value; }
+function toggleCustomVoice(){ $("customVoiceBox").style.display = elevenVoice.value==="custom" ? "block":"none"; }
+
+/* ---- זיכרון מקומי ---- */
+const store = {
+  load(){
+    apiKey.value=localStorage.getItem("ai_key")||"";
+    elevenKey.value=localStorage.getItem("ai_el_key")||"";
+    voiceMode.value=localStorage.getItem("ai_voicemode")||"eleven";
+    age.value=localStorage.getItem("ai_age")||"כיתה א׳ (גיל 6–7)";
+    lesson.value=localStorage.getItem("ai_lesson")||SAMPLE_LESSON;
+    speakOn.checked=localStorage.getItem("ai_speak")!=="0";
+    studentGender.value=localStorage.getItem("ai_sgender")||"m";
+    teacherGender.value=localStorage.getItem("ai_tgender")||"f";
+    methodSel.value=localStorage.getItem("ai_method")||"balanced";
+    elevenVoiceCustom.value=localStorage.getItem("ai_el_custom")||"";
+    let sel=localStorage.getItem("ai_el_sel")||DEFAULT_VOICE;
+    if(sel===OLD_LIBRARY_VOICE) sel=DEFAULT_VOICE;
+    if(sel!=="custom" && !VOICES.some(v=>v.id===sel)) sel=DEFAULT_VOICE;
+    elevenVoice.value=sel; toggleCustomVoice();
+  },
+  save(){
+    localStorage.setItem("ai_key",apiKey.value.trim());
+    localStorage.setItem("ai_el_key",elevenKey.value.trim());
+    localStorage.setItem("ai_voicemode",voiceMode.value);
+    localStorage.setItem("ai_age",age.value.trim());
+    localStorage.setItem("ai_lesson",lesson.value);
+    localStorage.setItem("ai_speak",speakOn.checked?"1":"0");
+    localStorage.setItem("ai_sgender",studentGender.value);
+    localStorage.setItem("ai_tgender",teacherGender.value);
+    localStorage.setItem("ai_method",methodSel.value);
+    localStorage.setItem("ai_el_sel",elevenVoice.value);
+    localStorage.setItem("ai_el_custom",elevenVoiceCustom.value.trim());
+  }
+};
+store.load();
+[apiKey,elevenKey,elevenVoiceCustom,age].forEach(el=>el.addEventListener("input", store.save));
+[speakOn,studentGender,methodSel].forEach(el=>el.addEventListener("change", store.save));
+teacherGender.addEventListener("change", ()=>{ store.save(); applyTeacherFace(); });
+voiceMode.addEventListener("change", ()=>{ store.save(); toggleVoiceBoxes(); });
+elevenVoice.addEventListener("change", ()=>{ toggleCustomVoice(); store.save(); });
+
+function toggleVoiceBoxes(){
+  const eleven=voiceMode.value==="eleven";
+  $("elevenBox").style.display=eleven?"block":"none";
+  $("browserBox").style.display=eleven?"none":"block";
+}
+toggleVoiceBoxes();
+
+/* ---- קולות דפדפן ---- */
+let voices=[];
+function loadVoices(){
+  voices=window.speechSynthesis?window.speechSynthesis.getVoices():[];
+  const he=voices.filter(v=>/he|iw/i.test(v.lang));
+  const list=he.length?he:voices;
+  const saved=localStorage.getItem("ai_voice");
+  voiceSel.innerHTML="";
+  list.forEach(v=>{ const o=document.createElement("option"); o.value=v.name; o.textContent=v.name+" ("+v.lang+")"; voiceSel.appendChild(o); });
+  if(saved && list.some(v=>v.name===saved)) voiceSel.value=saved;
+}
+if(window.speechSynthesis){ window.speechSynthesis.onvoiceschanged=loadVoices; loadVoices(); }
+voiceSel.addEventListener("change", ()=>localStorage.setItem("ai_voice", voiceSel.value));
+
+/* ---- השמעה + אנימציית פה ---- */
+const player=new Audio();
+let audioUnlocked=false, pendingPlay=null, browserSpeaking=false;
+let audioCtx=null, analyser=null, dataArray=null, analyserReady=false;
+const SILENT="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+function setupAudioGraph(){
+  if(analyserReady) return;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    audioCtx=new AC();
+    const src=audioCtx.createMediaElementSource(player);
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
+    dataArray=new Uint8Array(analyser.fftSize);
+    src.connect(analyser); analyser.connect(audioCtx.destination);
+    analyserReady=true;
+  }catch(e){ analyserReady=false; }
+}
+function unlockAudio(){
+  setupAudioGraph();
+  if(audioCtx && audioCtx.state==="suspended") audioCtx.resume();
+  if(audioUnlocked) return;
+  player.src=SILENT; player.play().then(()=>{audioUnlocked=true;}).catch(()=>{});
+}
+function stopSpeaking(){
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  browserSpeaking=false;
+  try{ player.pause(); }catch(e){}
+}
+$("stopVoice").addEventListener("click", stopSpeaking);
+
+async function speak(text){
+  if(!speakOn.checked) return;
+  stopSpeaking();
+  if(voiceMode.value==="eleven"){
+    const key=elevenKey.value.trim();
+    if(!key){ showNote("חסר מפתח ElevenLabs (הגדרות). אשמיע בקול הדפדפן."); return speakBrowser(text); }
+    try{ await speakEleven(text,key); }
+    catch(e){ showNote((e.message||"בעיה בקול הטבעי")+" — אשמיע בקול הדפדפן."); speakBrowser(text); }
+  } else speakBrowser(text);
+}
+function speakBrowser(text){
+  if(!window.speechSynthesis) return;
+  const u=new SpeechSynthesisUtterance(text);
+  const v=voices.find(x=>x.name===voiceSel.value);
+  if(v){ u.voice=v; u.lang=v.lang; } else u.lang="he-IL";
+  u.rate=0.95;
+  u.onstart=()=>{browserSpeaking=true;}; u.onend=()=>{browserSpeaking=false;}; u.onerror=()=>{browserSpeaking=false;};
+  window.speechSynthesis.speak(u);
+}
+async function speakEleven(text,key){
+  showPrep("🔊 מכינה את הקול... (רגע)");
+  const res=await fetch("https://api.elevenlabs.io/v1/text-to-speech/"+encodeURIComponent(getVoiceId()),{
+    method:"POST", headers:{ "xi-api-key":key,"content-type":"application/json","accept":"audio/mpeg" },
+    body:JSON.stringify({ text, model_id:TTS_MODEL })
+  });
+  if(!res.ok){
+    let msg="", code=""; try{ const j=await res.json(); const d=j.detail||{}; msg=d.message||(typeof d==="string"?d:""); code=d.status||d.code||""; }catch(e){}
+    if(code==="quota_exceeded" || /quota/i.test(msg)) throw new Error("נגמרה היתרה של ElevenLabs לחודש הזה — הקול הטבעי יחזור בתחילת החודש, או אחרי שדרוג");
+    if(res.status===401) throw new Error("מפתח ElevenLabs לא תקין");
+    if(res.status===422) throw new Error("בעיה בקול שנבחר — נסה קול אחר");
+    if(res.status===429) throw new Error("נגמרה היתרה של ElevenLabs לחודש הזה");
+    throw new Error("בעיה בקול הטבעי"+(msg?(": "+msg):""));
+  }
+  const url=URL.createObjectURL(await res.blob());
+  player.src=url; player.onended=()=>URL.revokeObjectURL(url);
+  try{ await player.play(); clearNote(); }
+  catch(e){ pendingPlay=()=>player.play(); showPlay(); }
+}
+$("testVoice").addEventListener("click", async ()=>{
+  unlockAudio(); store.save(); clearNote();
+  const key=elevenKey.value.trim();
+  if(!key){ showNote("חסר מפתח ElevenLabs (בהגדרות)."); return; }
+  try{ await speakEleven("שלום, אני המורה שלך. נעים מאוד להכיר!", key); }
+  catch(e){ showNote(e.message||"בעיה בהשמעת הדוגמה."); }
+});
+
+/* ---- הערות ---- */
+function showNote(m){ note.className="note err"; note.style.cursor="default"; note.style.display="block"; note.textContent=m; }
+function showPrep(m){ note.className="note play"; note.style.cursor="default"; note.style.display="block"; note.textContent=m; }
+function showPlay(){ note.className="note play"; note.style.cursor="pointer"; note.style.display="block"; note.textContent="🔊 לחץ כאן כדי לשמוע את המורה."; }
+function showOk(m){ note.className="note ok"; note.style.cursor="default"; note.style.display="block"; note.textContent=m; }
+function clearNote(){ note.style.display="none"; note.textContent=""; }
+note.addEventListener("click", ()=>{ if(pendingPlay){ const p=pendingPlay; pendingPlay=null; clearNote(); p(); } });
+
+/* ---- בועות שיחה ---- */
+function bubble(who,text){
+  const b=document.createElement("div");
+  b.className="bubble "+(who==="teacher"?"teacher":"student");
+  const tag=document.createElement("div"); tag.className="who"; tag.textContent=who==="teacher"?"המורה":"התלמיד";
+  const body=document.createElement("div"); body.textContent=text;
+  b.appendChild(tag); b.appendChild(body); chat.appendChild(b); chat.scrollTop=chat.scrollHeight;
+}
+function thinking(){
+  const b=document.createElement("div"); b.className="bubble teacher";
+  b.innerHTML='<div class="who">המורה</div><div class="dots"><span>●</span><span>●</span><span>●</span></div>';
+  chat.appendChild(b); chat.scrollTop=chat.scrollHeight; return b;
+}
+
+/* ---- מד התקדמות ---- */
+let lessonSteps=[], currentStep=0;
+function parseSteps(){
+  const steps=[];
+  lesson.value.split("\n").forEach(ln=>{ const m=ln.match(/^\s*שלב\s*(\d+)\s*[:.\-–]\s*(.+?)\s*$/); if(m) steps.push({n:parseInt(m[1],10),title:m[2]}); });
+  return steps;
+}
+function renderTracker(){
+  lessonSteps=parseSteps();
+  const c=$("tracker"); c.innerHTML="";
+  lessonSteps.forEach(s=>{ const el=document.createElement("div"); el.className="step"; el.dataset.n=s.n; el.textContent=s.n+". "+(s.title.length>22?s.title.slice(0,22)+"…":s.title); c.appendChild(el); });
+  setCurrentStep(currentStep);
+}
+function setCurrentStep(n){
+  currentStep=n;
+  $("tracker").querySelectorAll(".step").forEach(el=>{ const sn=parseInt(el.dataset.n,10); el.classList.remove("active","done"); if(n>=9999||sn<n) el.classList.add("done"); else if(sn===n) el.classList.add("active"); });
+}
+function stripTrack(text){
+  let cur=null;
+  const out=text.replace(/\[\[([^\]]*)\]\]/g,(m,inner)=>{ const num=inner.match(/(\d+)/); if(num) cur=parseInt(num[1],10); else if(/סוף|סיכום/.test(inner)) cur=9999; return ""; }).replace(/^[\s‏‎]+/,"").trimEnd();
+  if(cur!==null) setCurrentStep(cur);
+  return out;
+}
+
+/* ---- המוח ---- */
+let history=[];
+const METHODS={
+  balanced:{name:"מאוזן",desc:"בכל שלב: הסבר קצר וברור, דוגמה מהחיים, ואז שאלת בדיקה."},
+  socratic:{name:"סוקרטית",desc:"אל תיתן תשובות ישירות. הובל את התלמיד לגלות בעצמו דרך שאלות מכוונות — שאל שאלה אחת, חכה לתשובה, ואז שאלה נוספת שמקדמת צעד. אם טעה, שאל שאלה שתעזור לו לראות את הטעות בעצמו."},
+  discovery:{name:"גילוי וחקר",desc:"הצג בעיה או תופעה ותן לתלמיד לשער ולנסות לפני שאתה מסביר. עודד מחשבה עצמאית, ורק אז סכם את העיקרון."},
+  story:{name:"סיפור ודוגמאות",desc:"לַמד דרך סיפור קצר או דוגמה מהחיים שקרובה לתלמיד, ורק אז הכלל לכלל."},
+  practice:{name:"תרגול מודרך",desc:"הצג דוגמה פתורה צעד-צעד, ואז תן תרגיל דומה עם משוב מיידי, והגדל בהדרגה את הקושי."},
+  game:{name:"משחקי",desc:"הפוך את הלמידה לאתגרים וחידות קצרות עם עידוד והתלהבות, תוך שמירה על המטרה הלימודית."}
+};
+function systemPrompt(){
+  const a=age.value.trim()||"בית ספר יסודי";
+  const l=lesson.value.trim();
+  const isBoy=studentGender.value!=="f";
+  const genderRule=isBoy
+    ? `התלמיד הוא בן. יש לפנות אליו אך ורק בלשון זכר. צורות מותרות: "אתה", "אתה יודע?", "אתה מבין?", "ענית נכון", "הצלחת", "כל הכבוד לך", "מצוין", "נסה שוב". אסור צורות נקבה: "את", "יודעת", "מבינה".`
+    : `התלמידה היא בת. יש לפנות אליה אך ורק בלשון נקבה. צורות מותרות: "את", "את יודעת?", "את מבינה?", "ענית נכון", "הצלחת", "כל הכבוד לך", "מצוינת", "נסי שוב". אסור צורות זכר: "אתה", "יודע", "מבין".`;
+  const teacherLine=teacherGender.value==="m" ? "אתה מורה פרטי: חם, סבלני ומעודד." : "את מורה פרטית: חמה, סבלנית ומעודדת.";
+  const reminder=isBoy?"התלמיד בן — לשון זכר בלבד.":"התלמידה בת — לשון נקבה בלבד.";
+  const method=METHODS[methodSel.value]||METHODS.balanced;
+  const stu=curStudent();
+  const studentInfo=stu?`\n\nשם התלמיד/ה: ${stu.name}. ${stu.memory?("מה שידוע עליו/ה מפעמים קודמות:\n"+stu.memory):"זו הפעם הראשונה שאתם נפגשים."}\nפנה אליו/ה בשמו/ה (לפי מין התלמיד שצוין), והמשך מאיפה שהפסקתם.`:"";
+  const stepCount=parseSteps().length;
+  const trackLine=stepCount?`\nמעקב (חובה): פתח כל תשובה בתג נסתר [[שלב:N]] (N = מספר השלב הנוכחי, 1 עד ${stepCount}); בסיכום כתוב [[שלב:סוף]]. אל תזכיר ואל תקריא את התג.`:"";
+  const groundLine=currentApproved?`\n\nשיעור מאושר: השיעור נבדק ואושר על ידי מורה. ללמד אך ורק לפי התוכן שלמטה. אם נשאלת שאלה שאינה בשיעור — לומר בעדינות שזה לא חלק מהשיעור ושאפשר לשאול את המורה, ולא להמציא מידע.`:"";
+  return `הנחיה קריטית — מין התלמיד:
+${genderRule}
+לפני כל תשובה ודא שכל פועל, תואר וכינוי מתאימים למין התלמיד.
+
+${teacherLine}
+המשימה: ללמד תלמיד אחד בגיל/כיתה ${a} את השיעור שלמטה, בעברית פשוטה שמתאימה לגיל.${studentInfo}
+
+שיטת ההוראה — ${method.name}: ${method.desc}
+
+כללים:
+- ללמד לפי שלבי השיעור, שלב אחד בכל פעם.
+- לוודא הבנה אחרי כל שלב לפני שממשיכים.
+- אם טעה — לתקן בעדינות, בהתאם לשיטה.
+- בסוף: סיכום קצר ומילה טובה.
+- משפטים קצרים (נקרא בקול): בלי כותרות, רשימות, טבלאות או אימוג׳י.
+- לא להמציא עובדות.${trackLine}
+
+תזכורת אחרונה: ${reminder}${groundLine}
+
+תוכן השיעור ללמד:
+"""
+${l}
+"""`;
+}
+function genderReminder(){
+  return studentGender.value!=="f"
+    ? "\n\n(תזכורת פנימית: התלמיד בן — לפנות בלשון זכר בלבד.)"
+    : "\n\n(תזכורת פנימית: התלמידה בת — לפנות בלשון נקבה בלבד.)";
+}
+async function callBrain(){
+  const key=apiKey.value.trim();
+  if(!key){ showNote("חסר מפתח המוח (Anthropic). פתח 'הגדרות'."); throw new Error("no key"); }
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
+    body:JSON.stringify({ model:MODEL, max_tokens:400, system:systemPrompt(), messages:history })
+  });
+  if(!res.ok){
+    let t=""; try{ t=(await res.json()).error?.message||""; }catch(e){}
+    if(res.status===401) throw new Error("מפתח המוח לא תקין.");
+    throw new Error("בעיה בחיבור למוח"+(t?(": "+t):""));
+  }
+  return ((await res.json()).content||[]).map(b=>b.text||"").join("").trim();
+}
+async function turn(){
+  const wait=thinking(); setBusy(true);
+  try{
+    const reply=await callBrain();
+    const clean=stripTrack(reply);
+    wait.remove();
+    history.push({role:"assistant", content:clean});
+    bubble("teacher", clean); speak(clean);
+  }catch(e){ wait.remove(); if(e.message!=="no key") showNote(e.message||"משהו השתבש."); }
+  finally{ setBusy(false); }
+}
+function setBusy(b){ $("start").disabled=b; $("send").disabled=b; }
+
+/* ---- בניית שיעור (נושא / קובץ) ---- */
+function setBuilding(b){ const btn=$("buildLesson"); btn.disabled=b; btn.textContent=b?"בונה...":"✨ בנה שיעור"; const fb=$("useFileBuild"); fb.disabled=b; }
+async function buildLessonCore(opts){
+  const key=apiKey.value.trim();
+  const topic=(opts.topic||"").trim(), material=(opts.material||"").trim();
+  if(!key){ showNote("חסר מפתח המוח (Anthropic) — פתח 'הגדרות'."); return; }
+  if(!topic && !material){ showNote("כתוב נושא או העלה קובץ."); return; }
+  setBuilding(true); clearNote();
+  const a=age.value.trim()||"בית ספר יסודי";
+  const base=`בנה שיעור מובנה בעברית פשוטה המתאימה לגיל/כיתה ${a}. החזר טקסט בלבד, בלי מירכאות, במבנה:
+
+נושא: <כותרת>
+מטרות:
+- <מטרה 1>
+- <מטרה 2>
+
+שלב 1: <שם הצעד>
+מה מלמדים: <הסבר קצר>
+דוגמה: <דוגמה>
+שאלת בדיקה: <שאלה>
+תרגול: <תרגיל>
+
+(3 עד 5 שלבים)
+
+סיכום: <משפט קצר>`;
+  const sys=material ? base+`\n\nבסס את השיעור אך ורק על חומר המקור הבא; אל תוסיף עובדות שאינן בו:\n"""\n${material.slice(0,12000)}\n"""` : base;
+  const userMsg=material ? "בנה שיעור מתוך החומר שסופק." : topic;
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" },
+      body:JSON.stringify({ model:MODEL, max_tokens:1500, system:sys, messages:[{role:"user", content:userMsg}] })
+    });
+    if(!res.ok){ if(res.status===401){ showNote("מפתח המוח לא תקין."); return; } showNote("לא הצלחתי לבנות שיעור."); return; }
+    const out=((await res.json()).content||[]).map(b=>b.text||"").join("").trim();
+    if(out){
+      lesson.value=out; store.save(); currentStep=0; renderTracker();
+      currentLessonId=null; currentApproved=false;
+      const m=out.match(/^נושא:\s*(.+)$/m);
+      $("lessonTitle").value=topic||(m?m[1].trim():"שיעור מהחומר");
+      updateApprovedBadge();
+      showOk("השיעור נבנה! בדוק/ערוך, 'שמור בספרייה', ואז 'סמן כמאושר'.");
+    } else showNote("לא הצלחתי לבנות שיעור.");
+  }catch(e){ showNote("בעיה בבניית השיעור."); }
+  finally{ setBuilding(false); }
+}
+$("buildLesson").addEventListener("click", ()=> buildLessonCore({topic:$("topic").value}) );
+
+/* ---- העלאת קובץ ---- */
+let uploadedText="";
+$("fileInput").addEventListener("change", async (e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  clearNote(); showPrep("📄 קורא את הקובץ...");
+  try{
+    if(/\.pdf$/i.test(f.name)){
+      if(!window.pdfjsLib){ showNote("קריאת PDF לא זמינה כרגע — נסה קובץ טקסט (txt)."); return; }
+      uploadedText=await extractPdf(f);
+    } else uploadedText=await f.text();
+    uploadedText=(uploadedText||"").trim();
+    if(uploadedText) showOk("📄 נטען חומר ("+uploadedText.length+" תווים). לחץ '📄 בנה מהחומר'.");
+    else showNote("לא נמצא טקסט בקובץ.");
+  }catch(err){ showNote("בעיה בקריאת הקובץ."); }
+});
+async function extractPdf(file){
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let t="";
+  for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i); const tc=await pg.getTextContent(); t+=tc.items.map(s=>s.str).join(" ")+"\n"; }
+  return t;
+}
+$("useFileBuild").addEventListener("click", ()=>{ if(!uploadedText){ showNote("קודם העלה קובץ."); return; } buildLessonCore({material:uploadedText}); });
+
+/* ---- ספריית שיעורים מאושרים ---- */
+let currentLessonId=null, currentApproved=false;
+function loadLib(){ try{ return JSON.parse(localStorage.getItem("ai_library")||"[]"); }catch(e){ return []; } }
+function saveLib(arr){ localStorage.setItem("ai_library", JSON.stringify(arr)); }
+function renderLib(){
+  const arr=loadLib(), sel=$("lessonLib");
+  sel.innerHTML='<option value="">— בחר שיעור שמור —</option>';
+  arr.forEach(l=>{ const o=document.createElement("option"); o.value=l.id; o.textContent=(l.approved?"✓ ":"")+l.title; sel.appendChild(o); });
+  if(currentLessonId) sel.value=currentLessonId;
+  renderStudentLessons();
+}
+function updateApprovedBadge(){ const b=$("approvedBadge"); if(b) b.style.display=currentApproved?"inline-block":"none"; }
+$("saveLesson").addEventListener("click", ()=>{
+  const content=lesson.value.trim();
+  if(!content){ showNote("אין תוכן לשמור."); return; }
+  let title=$("lessonTitle").value.trim();
+  if(!title){ const m=content.match(/^נושא:\s*(.+)$/m); title=((m?m[1]:content.split("\n")[0])||"שיעור").trim().slice(0,40); $("lessonTitle").value=title; }
+  const arr=loadLib();
+  if(currentLessonId){ const it=arr.find(x=>x.id===currentLessonId); if(it){ it.title=title; it.content=content; } }
+  else { currentLessonId="L"+Date.now(); arr.push({id:currentLessonId,title,content,approved:false}); currentApproved=false; }
+  saveLib(arr); renderLib(); updateApprovedBadge(); showOk("השיעור נשמר בספרייה.");
+});
+$("approveLesson").addEventListener("click", ()=>{
+  if(!currentLessonId){ showNote("קודם שמור את השיעור בספרייה (💾)."); return; }
+  const arr=loadLib(), it=arr.find(x=>x.id===currentLessonId); if(!it) return;
+  it.content=lesson.value.trim(); it.approved=!it.approved; currentApproved=it.approved;
+  saveLib(arr); renderLib(); updateApprovedBadge();
+  showOk(it.approved?"השיעור סומן כמאושר ✓ — בשיעור הזה המורה תלמד רק ממנו.":"האישור הוסר.");
+});
+$("loadLesson").addEventListener("click", ()=>{
+  const id=$("lessonLib").value; if(!id){ showNote("בחר שיעור מהרשימה."); return; }
+  const it=loadLib().find(x=>x.id===id); if(!it) return;
+  currentLessonId=it.id; lesson.value=it.content; $("lessonTitle").value=it.title; currentApproved=!!it.approved;
+  store.save(); updateApprovedBadge(); renderTracker(); clearNote();
+});
+$("deleteLesson").addEventListener("click", ()=>{
+  const id=$("lessonLib").value||currentLessonId; if(!id){ showNote("בחר שיעור למחיקה."); return; }
+  saveLib(loadLib().filter(x=>x.id!==id));
+  if(currentLessonId===id){ currentLessonId=null; currentApproved=false; updateApprovedBadge(); }
+  renderLib(); showOk("השיעור נמחק.");
+});
+lesson.addEventListener("input", ()=>{ store.save(); if(currentApproved){ currentApproved=false; updateApprovedBadge(); } });
+
+/* ---- צד תלמיד: בחירת שיעור ---- */
+function renderStudentLessons(){
+  const c=$("studentLessons"); if(!c) return;
+  const arr=loadLib().filter(l=>l.approved);
+  c.innerHTML=""; $("noApproved").style.display=arr.length?"none":"block";
+  arr.forEach(l=>{
+    const el=document.createElement("div"); el.className="tile"; el.textContent=l.title;
+    el.addEventListener("click", async ()=>{
+      currentLessonId=l.id; lesson.value=l.content; $("lessonTitle").value=l.title; currentApproved=true;
+      updateApprovedBadge(); await startLesson();
+    });
+    c.appendChild(el);
+  });
+}
+
+/* ---- זיכרון אישי לכל תלמיד ---- */
+let students=[], currentStudentId=null;
+function loadStudents(){ try{ students=JSON.parse(localStorage.getItem("ai_students")||"[]"); }catch(e){ students=[]; } }
+function saveStudents(){ localStorage.setItem("ai_students", JSON.stringify(students)); }
+function curStudent(){ return students.find(s=>s.id===currentStudentId)||null; }
+function showMemory(){ const s=curStudent(); if($("studentMemory")) $("studentMemory").value = s?(s.memory||""):""; }
+function renderStudents(){
+  loadStudents();
+  const sel=$("studentSel"); if(!sel) return;
+  sel.innerHTML="";
+  if(!students.length){ const o=document.createElement("option"); o.value=""; o.textContent="— אין תלמידים, צור חדש —"; sel.appendChild(o); currentStudentId=null; }
+  students.forEach(s=>{ const o=document.createElement("option"); o.value=s.id; o.textContent=s.name; sel.appendChild(o); });
+  if(currentStudentId && students.some(s=>s.id===currentStudentId)) sel.value=currentStudentId;
+  else if(students.length){ currentStudentId=students[0].id; sel.value=currentStudentId; }
+  localStorage.setItem("ai_cur_student", currentStudentId||"");
+  showMemory();
+}
+$("studentSel").addEventListener("change", ()=>{ currentStudentId=$("studentSel").value||null; localStorage.setItem("ai_cur_student", currentStudentId||""); showMemory(); });
+$("newStudent").addEventListener("click", ()=>{
+  const name=prompt("שם התלמיד/ה:"); if(!name||!name.trim()) return;
+  const st={ id:"S"+Date.now(), name:name.trim(), memory:"" };
+  students.push(st); saveStudents(); currentStudentId=st.id; renderStudents(); showOk("נוסף: "+st.name);
+});
+$("saveMemoryEdit").addEventListener("click", ()=>{ const s=curStudent(); if(!s){ showNote("אין תלמיד נבחר."); return; } s.memory=$("studentMemory").value.trim(); saveStudents(); showOk("הזיכרון נשמר."); });
+$("clearMemory").addEventListener("click", ()=>{ const s=curStudent(); if(!s) return; s.memory=""; saveStudents(); showMemory(); showOk("הזיכרון נוקה."); });
+$("saveProgress").addEventListener("click", async ()=>{
+  const s=curStudent(); if(!s){ showNote("בחר תלמיד קודם (למעלה)."); return; }
+  const key=apiKey.value.trim(); if(!key){ showNote("חסר מפתח המוח."); return; }
+  if(history.length<2){ showNote("אין עדיין שיעור לסכם."); return; }
+  showPrep("💾 שומר התקדמות...");
+  const convo=history.map(m=>(m.role==="user"?"תלמיד: ":"מורה: ")+m.content).join("\n").slice(0,8000);
+  const sys="לפניך שיחת שיעור. סכם ב-2-3 משפטים בגוף שלישי: מה התלמיד למד, מה הוא יודע טוב, ובמה התקשה. כתוב רק את הסיכום, להוספה לזיכרון אישי לפעם הבאה.";
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{ method:"POST", headers:{ "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" }, body:JSON.stringify({ model:MODEL, max_tokens:300, system:sys, messages:[{role:"user", content:convo}] }) });
+    if(!res.ok){ showNote("לא הצלחתי לשמור התקדמות."); return; }
+    const sum=((await res.json()).content||[]).map(b=>b.text||"").join("").trim();
+    if(sum){ const d=new Date().toLocaleDateString("he-IL"); s.memory=(s.memory?s.memory+"\n":"")+"["+d+"] "+sum; saveStudents(); showMemory(); showOk("ההתקדמות נשמרה לזיכרון של "+s.name+" ✅"); }
+    else showNote("לא הצלחתי לסכם.");
+  }catch(e){ showNote("בעיה בשמירת ההתקדמות."); }
+});
+
+/* ---- התחלת שיעור ---- */
+async function startLesson(){
+  unlockAudio(); store.save(); clearNote();
+  chat.innerHTML=""; currentStep=1; renderTracker();
+  history=[{role:"user", content:"שלום! מתחילים את השיעור: לפתוח בברכה אישית קצרה בשם התלמיד (ואם יש זיכרון מפעם קודמת — להתייחס אליו במשפט אחד), ואז ללמד מההתחלה — רק הרעיון הראשון — ואז לשאול שאלה קצרה." + genderReminder()}];
+  await turn();
+}
+$("start").addEventListener("click", startLesson);
+
+async function ask(text){
+  text=(text||q.value).trim(); if(!text) return;
+  if(history.length===0){ showNote("קודם התחל שיעור."); return; }
+  q.value=""; bubble("student", text);
+  history.push({role:"user", content:text+genderReminder()});
+  await turn();
+}
+$("send").addEventListener("click", ()=>{ unlockAudio(); ask(); });
+q.addEventListener("keydown", e=>{ if(e.key==="Enter"){ unlockAudio(); ask(); } });
+$("reset").addEventListener("click", ()=>{ history=[]; chat.innerHTML=""; clearNote(); stopSpeaking(); currentStep=0; $("tracker").innerHTML=""; });
+
+/* ---- פרצוף מדבר ---- */
+const mouthEl=$("mouth"), eyeL=$("eyeL"), eyeR=$("eyeR"), hairM=$("hairMale"), hairF=$("hairFemale");
+function applyTeacherFace(){ const f=teacherGender.value!=="m"; if(hairF) hairF.style.display=f?"":"none"; if(hairM) hairM.style.display=f?"none":""; }
+function setMouth(open){ if(!mouthEl) return; open=Math.max(0,Math.min(1,open)); mouthEl.setAttribute("ry",(2+open*13).toFixed(1)); }
+function faceLoop(){
+  requestAnimationFrame(faceLoop);
+  let open=0;
+  if(analyserReady && !player.paused && !player.ended){
+    analyser.getByteTimeDomainData(dataArray);
+    let sum=0; for(let i=0;i<dataArray.length;i++){ const x=(dataArray[i]-128)/128; sum+=x*x; }
+    open=Math.min(1, Math.sqrt(sum/dataArray.length)*4.5);
+  } else if(browserSpeaking){ open=0.25+0.35*Math.abs(Math.sin(Date.now()/110)); }
+  setMouth(open);
+}
+requestAnimationFrame(faceLoop);
+function blink(){ if(!eyeL) return; const t=c=>`translate(${c} 104) scale(1 0.12) translate(${-c} -104)`; eyeL.setAttribute("transform",t(80)); eyeR.setAttribute("transform",t(120)); setTimeout(()=>{ eyeL.removeAttribute("transform"); eyeR.removeAttribute("transform"); },130); }
+setInterval(()=>{ if(Math.random()<0.6) blink(); },2600);
+
+/* ---- דיבור אל המורה ---- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const mic=$("mic");
+if(SR){
+  const rec=new SR(); rec.lang="he-IL"; rec.interimResults=false; rec.maxAlternatives=1; let listening=false;
+  mic.addEventListener("click", ()=>{ unlockAudio(); if(listening){ rec.stop(); return; } try{ rec.start(); }catch(e){} });
+  rec.onstart=()=>{ listening=true; mic.classList.add("live"); };
+  rec.onend=()=>{ listening=false; mic.classList.remove("live"); };
+  rec.onerror=()=>{ listening=false; mic.classList.remove("live"); };
+  rec.onresult=e=>ask(e.results[0][0].transcript);
+}else mic.style.display="none";
+
+/* ---- מצב מורה/תלמיד ---- */
+function applyMode(){
+  const student=localStorage.getItem("ai_mode")==="student";
+  document.body.classList.toggle("mode-student", student);
+  $("btnTeacher").classList.toggle("alt", student);
+  $("btnStudent").classList.toggle("alt", !student);
+  if(student) renderStudentLessons();
+}
+$("btnTeacher").addEventListener("click", ()=>{ localStorage.setItem("ai_mode","teacher"); applyMode(); });
+$("btnStudent").addEventListener("click", ()=>{ localStorage.setItem("ai_mode","student"); applyMode(); });
+
+/* ---- אתחול ---- */
+applyTeacherFace();
+renderLib();
+updateApprovedBadge();
+currentStudentId=localStorage.getItem("ai_cur_student")||null;
+renderStudents();
+applyMode();
+</script>
+</body>
+</html>
