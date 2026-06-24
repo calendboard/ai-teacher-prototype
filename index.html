@@ -40,12 +40,16 @@
   .toggle{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink)}
   .toggle input{width:auto}
   /* מצב מורה/תלמיד */
-  .modebar{display:flex; gap:8px; justify-content:flex-start; margin-bottom:14px}
-  .modebar button{font-size:13px; padding:8px 12px}
+  .profiles{display:flex; gap:28px; justify-content:center; margin:6px 0 18px}
+  .profile{display:flex; flex-direction:column; align-items:center; gap:8px; background:none; padding:6px; color:var(--muted); font-weight:700}
+  .profile:hover{background:none}
+  .profile .pic{width:96px; height:96px; border-radius:50%; background:#eef2f7; border:3px solid transparent; display:flex; align-items:center; justify-content:center; font-size:46px}
+  .profile:hover .pic{background:#e3e9f1}
+  .profile.active{color:var(--brand-dark)}
+  .profile.active .pic{border-color:var(--brand); background:#dbeafe}
+  .profile .plabel{font-size:15px}
   body.mode-student .teacher-only{display:none}
   body:not(.mode-student) .student-only{display:none}
-  body.mode-student #btnStudent{display:none}
-  body:not(.mode-student) #btnTeacher{display:none}
   body.mode-student #newStudent{display:none}
   body.mode-student #saveProgressWrap{display:none}
   .big{font-size:18px; padding:16px; width:100%}
@@ -92,9 +96,9 @@
     <h1>👩‍🏫 המורה שלי</h1>
   </header>
 
-  <div class="modebar">
-    <button id="btnStudent" class="ghost">🧒 תצוגת תלמיד</button>
-    <button id="btnTeacher" class="ghost">⚙️ הכנת שיעורים</button>
+  <div class="profiles">
+    <button class="profile" id="btnTeacher"><span class="pic">👩‍🏫</span><span class="plabel">מורה</span></button>
+    <button class="profile" id="btnStudent"><span class="pic">🧒</span><span class="plabel">תלמיד</span></button>
   </div>
 
   <div class="card" style="padding:12px 16px">
@@ -813,6 +817,8 @@ if(SR){
 function applyMode(){
   const student=localStorage.getItem("ai_mode")==="student";
   document.body.classList.toggle("mode-student", student);
+  $("btnTeacher").classList.toggle("active", !student);
+  $("btnStudent").classList.toggle("active", student);
   if(student) renderStudentLessons();
 }
 $("btnTeacher").addEventListener("click", ()=>{ localStorage.setItem("ai_mode","teacher"); applyMode(); });
