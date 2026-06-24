@@ -81,7 +81,9 @@
   .note.err{background:#fef2f2; border:1px solid #fecaca; color:#b91c1c}
   .note.play{background:#eff6ff; border:1px solid #bcd6ff; color:#1d4ed8}
   .note.ok{background:#ecfdf5; border:1px solid #a7f3d0; color:#047857}
-  details summary{cursor:pointer; color:var(--muted); font-size:14px; font-weight:600}
+  details summary{cursor:pointer; color:var(--ink); font-size:14px; font-weight:700; background:#eef2f7; padding:11px 14px; border-radius:10px}
+  details summary:hover{background:#e3e9f1}
+  details[open] summary{margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -106,7 +108,7 @@
   <!-- הגדרות -->
   <div class="card teacher-only">
     <details>
-      <summary>הגדרות (מפתחות, קול, גיל)</summary>
+      <summary>⚙️ הגדרות (קול, מין, גיל, שיטת הוראה)</summary>
       <div style="margin-top:12px">
         <label for="apiKey">מפתח המוח (Anthropic API key)</label>
         <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off" />
@@ -809,7 +811,7 @@ if(SR){
 
 /* ---- מצב מורה/תלמיד ---- */
 function applyMode(){
-  const student=localStorage.getItem("ai_mode")!=="teacher";
+  const student=localStorage.getItem("ai_mode")==="student";
   document.body.classList.toggle("mode-student", student);
   if(student) renderStudentLessons();
 }
