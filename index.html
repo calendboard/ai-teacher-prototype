@@ -557,6 +557,8 @@ ${teacherLine}
 כללים:
 - ללמד לפי שלבי השיעור, שלב אחד בכל פעם.
 - לוודא הבנה אחרי כל שלב לפני שממשיכים.
+- להתאים את הרמה והקצב לתלמיד: אם עונה בקלות — להעלות מעט את האתגר; אם מתקשה — לפשט, להאט ולתת עוד דוגמאות.
+- להשתמש במילים ובדוגמאות שמתאימות בדיוק לגיל ולמה שידוע על התלמיד מהזיכרון.
 - אם טעה — לתקן בעדינות, בהתאם לשיטה.
 - בסוף: סיכום קצר ומילה טובה.
 - משפטים קצרים (נקרא בקול): בלי כותרות, רשימות, טבלאות או אימוג׳י.
@@ -810,7 +812,7 @@ if(SR){
   rec.onstart=()=>{ listening=true; mic.classList.add("live"); };
   rec.onend=()=>{ listening=false; mic.classList.remove("live"); };
   rec.onerror=()=>{ listening=false; mic.classList.remove("live"); };
-  rec.onresult=e=>ask(e.results[0][0].transcript);
+  rec.onresult=e=>{ q.value=e.results[0][0].transcript; q.focus(); };
 }else mic.style.display="none";
 
 /* ---- מצב מורה/תלמיד ---- */
