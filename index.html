@@ -73,6 +73,8 @@
   .teacher{align-self:flex-start; background:var(--teacher); border:1px solid var(--teacher-edge); border-top-right-radius:4px}
   .student{align-self:flex-end; background:var(--student); border:1px solid var(--student-edge); border-top-left-radius:4px}
   .who{font-size:11px; color:var(--muted); margin-bottom:2px}
+  .lessonimg{max-width:100%; border-radius:12px; margin-top:8px; display:block}
+  .imgph{margin-top:8px; font-size:13px; color:var(--muted)}
   .dots span{display:inline-block; animation:blink 1.2s infinite both}
   .dots span:nth-child(2){animation-delay:.2s}
   .dots span:nth-child(3){animation-delay:.4s}
@@ -489,6 +491,7 @@ function bubble(who,text){
   const tag=document.createElement("div"); tag.className="who"; tag.textContent=who==="teacher"?"המורה":"התלמיד";
   const body=document.createElement("div"); body.textContent=text;
   b.appendChild(tag); b.appendChild(body); chat.appendChild(b); chat.scrollTop=chat.scrollHeight;
+  return b;
 }
 function thinking(){
   const b=document.createElement("div"); b.className="bubble teacher";
@@ -534,6 +537,7 @@ function systemPrompt(){
   const a=age.value.trim()||"בית ספר יסודי";
   const l=lesson.value.trim();
   const isBoy=studentGender.value!=="f";
+  const imgLine = USE_PROXY ? `\n\nהמחשה חזותית: כשאיור יעזור להבנה, הוסף תג נסתר בפורמט [[ציור: short English description of a simple, colorful, child-friendly illustration]] — במשורה (לא בכל תשובה), בלי להזכיר או להקריא את התג.` : "";
   const genderRule=isBoy
     ? `התלמיד הוא בן. יש לפנות אליו אך ורק בלשון זכר. צורות מותרות: "אתה", "אתה יודע?", "אתה מבין?", "ענית נכון", "הצלחת", "כל הכבוד לך", "מצוין", "נסה שוב". אסור צורות נקבה: "את", "יודעת", "מבינה".`
     : `התלמידה היא בת. יש לפנות אליה אך ורק בלשון נקבה. צורות מותרות: "את", "את יודעת?", "את מבינה?", "ענית נכון", "הצלחת", "כל הכבוד לך", "מצוינת", "נסי שוב". אסור צורות זכר: "אתה", "יודע", "מבין".`;
@@ -562,7 +566,7 @@ ${teacherLine}
 - אם טעה — לתקן בעדינות, בהתאם לשיטה.
 - בסוף: סיכום קצר ומילה טובה.
 - משפטים קצרים (נקרא בקול): בלי כותרות, רשימות, טבלאות או אימוג׳י.
-- לא להמציא עובדות.${trackLine}
+- לא להמציא עובדות.${trackLine}${imgLine}
 
 תזכורת אחרונה: ${reminder}${groundLine}
 
@@ -586,14 +590,35 @@ async function callBrain(){
   }
   return ((await res.json()).content||[]).map(b=>b.text||"").join("").trim();
 }
+function extractImage(text){
+  let prompt=null;
+  const out=text.replace(/\[\[\s*ציור\s*:\s*([^\]]+?)\s*\]\]/g,(m,p)=>{ if(!prompt) prompt=p; return ""; }).replace(/^[\s]+/,"").trimEnd();
+  return { text:out, prompt };
+}
+async function generateImage(promptText, bubbleEl){
+  const ph=document.createElement("div"); ph.className="imgph"; ph.textContent="🖼️ מצייר..."; bubbleEl.appendChild(ph); chat.scrollTop=chat.scrollHeight;
+  try{
+    const res=await fetch("/api/image",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:promptText})});
+    if(!res.ok) throw 0;
+    const j=await res.json();
+    if(j && j.image){
+      const img=document.createElement("img"); img.className="lessonimg";
+      img.onerror=()=>{ img.onerror=null; img.src="data:image/jpeg;base64,"+j.image; };
+      img.src="data:image/png;base64,"+j.image;
+      ph.replaceWith(img); chat.scrollTop=chat.scrollHeight;
+    } else ph.remove();
+  }catch(e){ ph.remove(); }
+}
+
 async function turn(){
   const wait=thinking(); setBusy(true);
   try{
     const reply=await callBrain();
-    const clean=stripTrack(reply);
+    const ie=extractImage(stripTrack(reply));
     wait.remove();
-    history.push({role:"assistant", content:clean});
-    bubble("teacher", clean); speak(clean);
+    history.push({role:"assistant", content:ie.text});
+    const tb=bubble("teacher", ie.text); speak(ie.text);
+    if(ie.prompt && USE_PROXY) generateImage(ie.prompt, tb);
   }catch(e){ wait.remove(); if(e.message!=="no key") showNote(e.message||"משהו השתבש."); }
   finally{ setBusy(false); }
 }
