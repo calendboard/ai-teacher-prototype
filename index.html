@@ -537,7 +537,7 @@ function systemPrompt(){
   const a=age.value.trim()||"בית ספר יסודי";
   const l=lesson.value.trim();
   const isBoy=studentGender.value!=="f";
-  const imgLine = USE_PROXY ? `\n\nהמחשה חזותית: כשאיור יעזור להבנה, הוסף תג נסתר בפורמט [[ציור: short English description of a simple, colorful, child-friendly illustration]] — במשורה (לא בכל תשובה), בלי להזכיר או להקריא את התג.` : "";
+  const imgLine = `\n\nהמחשה חזותית: כשאיור יעזור להבנה, הוסף תג נסתר בפורמט [[ציור: short English description of a simple, colorful, child-friendly illustration]] — במשורה (לא בכל תשובה), בלי להזכיר או להקריא את התג.`;
   const genderRule=isBoy
     ? `התלמיד הוא בן. יש לפנות אליו אך ורק בלשון זכר. צורות מותרות: "אתה", "אתה יודע?", "אתה מבין?", "ענית נכון", "הצלחת", "כל הכבוד לך", "מצוין", "נסה שוב". אסור צורות נקבה: "את", "יודעת", "מבינה".`
     : `התלמידה היא בת. יש לפנות אליה אך ורק בלשון נקבה. צורות מותרות: "את", "את יודעת?", "את מבינה?", "ענית נכון", "הצלחת", "כל הכבוד לך", "מצוינת", "נסי שוב". אסור צורות זכר: "אתה", "יודע", "מבין".`;
@@ -597,17 +597,10 @@ function extractImage(text){
 }
 async function generateImage(promptText, bubbleEl){
   const ph=document.createElement("div"); ph.className="imgph"; ph.textContent="🖼️ מצייר..."; bubbleEl.appendChild(ph); chat.scrollTop=chat.scrollHeight;
-  try{
-    const res=await fetch("/api/image",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt:promptText})});
-    if(!res.ok) throw 0;
-    const j=await res.json();
-    if(j && j.image){
-      const img=document.createElement("img"); img.className="lessonimg";
-      img.onerror=()=>{ img.onerror=null; img.src="data:image/jpeg;base64,"+j.image; };
-      img.src="data:image/png;base64,"+j.image;
-      ph.replaceWith(img); chat.scrollTop=chat.scrollHeight;
-    } else ph.remove();
-  }catch(e){ ph.remove(); }
+  const img=document.createElement("img"); img.className="lessonimg"; img.alt="";
+  img.onload=()=>{ if(ph.parentNode) ph.replaceWith(img); chat.scrollTop=chat.scrollHeight; };
+  img.onerror=()=>{ ph.remove(); };
+  img.src="https://image.pollinations.ai/prompt/"+encodeURIComponent(promptText+", simple colorful illustration for children, friendly")+"?width=640&height=448&nologo=true";
 }
 
 async function turn(){
@@ -618,7 +611,7 @@ async function turn(){
     wait.remove();
     history.push({role:"assistant", content:ie.text});
     const tb=bubble("teacher", ie.text); speak(ie.text);
-    if(ie.prompt && USE_PROXY) generateImage(ie.prompt, tb);
+    if(ie.prompt) generateImage(ie.prompt, tb);
   }catch(e){ wait.remove(); if(e.message!=="no key") showNote(e.message||"משהו השתבש."); }
   finally{ setBusy(false); }
 }
